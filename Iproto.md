@@ -29,7 +29,15 @@ iproto. Iproto принимает запросы из сети, обрабаты
 передаются в iproto тред. Часть данных из iproto сбрасывается в сеть, т.е.
 меняется wpos у obuf, соответсвенно это новое знвчение передается в TX тред
 посредством cbus message. Аналогично делается и для ibuf только в другую
-сторону (из iproto в TX)
+сторону (из iproto в TX). Т.е. может быть ситуация, что через `tx_pipe`
+одновременно проходит два cbus message; один &mdash; из iproto в TX,
+а другой &mdash; из TX в iproto.
+```C
+/**
+ * The maximal number of iproto messages in fly.
+ */
+static int iproto_msg_max = IPROTO_MSG_MAX_MIN;
+```
 
 ---
 
