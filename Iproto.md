@@ -72,6 +72,128 @@ static int iproto_msg_max = IPROTO_MSG_MAX_MIN;
 после чего возвращаемся на ту самую позицию, меняем уже посчитанный размер
 и работаем дальше.
 
+## iproto_stream ##
+- [ ] Подробнее описать жизненный цикл, когдла создается, когда удаляется
+
+Имеется хеш-таблица потоков для каждого соединения. Когда новый запрос
+приходит с ненулевым идентификатором потока, ищем поток с таким ID в этой
+таблице и если его, мы его создаем. Заявка помещается в очередь ожидающих
+запросов, и если эта очередь была пуста на момент ее поступления, то она
+передается в поток tx для обработки. Когда запрос возвращается в сетевой
+поток (запрос обработан tx тредом), мы берем
+следующий запрос из очереди ожидающих запросов и отправляем его в поток tx.
+Если нет ожидающих запросов, мы удаляем объект из хеш-таблицы и уничтожаем
+его. Запросы с zero stream ID обрабатываются по старинке.
+Структура, описывающая iproto_steram представлена ниже:
+
+```C
+struct iproto_stream {
+	/** Currently active stream transaction or NULL */
+	struct txn *txn;
+	/**
+	 * Queue of pending requests (iproto messages) for this stream,
+	 * processed sequentially. This field is accesable only from
+	 * iproto thread. Queue items has iproto_msg type.
+	 */
+	struct stailq pending_requests;
+	/** Id of this stream, used as a key in streams hash table */
+	uint64_t id;
+	/** This stream connection */
+	struct iproto_connection *connection;
+	/**
+	 * Pre-allocated disconnect msg to gracefully rollback stream
+	 * transaction and destroy stream object.
+	 */
+	struct cmsg on_disconnect;
+	/**
+	 * Message currently being processed in the tx thread.
+	 * This field is accesable only from iproto thread.
+	 */
+	struct iproto_msg *current;
+};
+```
+
+В каждом iproto треде содержится пул iproto_stream
+```C
+struct iproto_thread {
+    ...
+    /*
+	 * Iproto thread memory pools
+	 */
+    struct mempool iproto_msg_pool;
+	struct mempool iproto_connection_pool;
+    struct mempool iproto_stream_pool;
+    ...
+};
+```
+
+Выделение памяти и инициализация iproto_stream
+```C
+static struct iproto_stream *
+iproto_stream_new(struct iproto_connection *connection, uint64_t stream_id)
+{
+	struct iproto_thread *iproto_thread = connection->iproto_thread;
+	struct iproto_stream *stream = (struct iproto_stream *)
+		mempool_alloc(&iproto_thread->iproto_stream_pool);
+	if (stream == NULL) {
+		diag_set(OutOfMemory, sizeof(*stream),
+			 "mempool_alloc", "stream");
+		return NULL;
+	}
+    ...
+	stream->txn = NULL;
+	stream->current = NULL;
+	stailq_create(&stream->pending_requests);
+	stream->id = stream_id;
+	stream->connection = connection;
+	return stream;
+}
+```
+
+Если больше нет сообщений для текущего stream и нет стартующих транзакций,
+то iproto_stream можно удалить.
+```C
+static void
+iproto_stream_delete(struct iproto_stream *stream)
+{
+	assert(stream->current == NULL);
+	assert(stailq_empty(&stream->pending_requests));
+	assert(stream->txn == NULL);
+	mempool_free(&stream->connection->iproto_thread->iproto_stream_pool, stream);
+}
+```
+
+## mempool ##
+- [ ] Вставить картинку
+
+Классический пул аллокатор. Как и прочие подобные, этот аллокатор умеет
+выделять блоки одного фиксированного размера и предназначен для длительного
+хранения данных, удаление блоков происходит в произвольном порядке. Mempool
+берет из Slab cache большие slabы и размечает их под требуемый размер.
+Интересна стратегия переиспользования удаляемых блоков. В каждом slabе
+хранится свой список удаленных из него блоков (free list). При этом slabы
+одного Mempoolа делятся по степени заполненности на горячие и холодные.
+Для нового выделения используется free list по возможности горячего slabа
+с минимальным адресом. Такая стратегия позволяет хоть как-то бороться с
+общей проблемой всех пулов памяти &mdash; фрагментацией.
+
+Представим себе типичную случайную нагрузку на такой аллокатор:
+пользователь сначала выделил много блоков, а потом начинает циклично
+выделять новый/удалять случайный старый, причем удалять старые блоки
+приходится немного чаще, чем выделять новые. Очевидно Mempool не может
+освободить slab до тех пор, пока в нем содержится хотя бы один используемый
+блок. Поэтому при такой нагрузке появляется фрагментация &mdash; slabов
+много, в них будет много свободной памяти, но вот освободить их для общих
+нужд (например для других Mempool) этот Mempool не может. Если использовать
+один общий free list (что является стандартным подходом при реализации
+пула памяти) &mdash; то новые размещения в памяти будут попадать в
+случайные slabы, и даже после полной ротации (когда каждый блок из
+изначально выделенных был освобожден) фрагментация останется. Поэтому
+Mempool в Tarantool старается новые размещения делать в более плотных и
+каких-то определенных slabах, и при полной ротации блоков все прочие slabы
+будут точно пусты и соответственно возвращены обратно в Slab cache.
+
+
 
 ### Todo
 
@@ -83,3 +205,4 @@ static int iproto_msg_max = IPROTO_MSG_MAX_MIN;
 
 - [ ] Архитектура iproto глобально
 - [X] Частично реализовал гифку
+- [X] Описать mempool + iproto_steram
