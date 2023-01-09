@@ -175,8 +175,8 @@ struct iproto_stream {
 struct iproto_thread {
     ...
     /*
-	 * Iproto thread memory pools
-	 */
+    * Iproto thread memory pools
+    */
     struct mempool iproto_msg_pool;
     struct mempool iproto_connection_pool;
     struct mempool iproto_stream_pool;
@@ -189,21 +189,20 @@ struct iproto_thread {
 static struct iproto_stream *
 iproto_stream_new(struct iproto_connection *connection, uint64_t stream_id)
 {
-	struct iproto_thread *iproto_thread = connection->iproto_thread;
-	struct iproto_stream *stream = (struct iproto_stream *)
-		mempool_alloc(&iproto_thread->iproto_stream_pool);
-	if (stream == NULL) {
-		diag_set(OutOfMemory, sizeof(*stream),
-			 "mempool_alloc", "stream");
-		return NULL;
+    struct iproto_thread *iproto_thread = connection->iproto_thread;
+    struct iproto_stream *stream = (struct iproto_stream *)
+        mempool_alloc(&iproto_thread->iproto_stream_pool);
+    if (stream == NULL) {
+		diag_set(OutOfMemory, sizeof(*stream), "mempool_alloc", "stream");
+        return NULL;
     }
     ...
-	stream->txn = NULL;
-	stream->current = NULL;
-	stailq_create(&stream->pending_requests);
-	stream->id = stream_id;
-	stream->connection = connection;
-	return stream;
+    stream->txn = NULL;
+    stream->current = NULL;
+    stailq_create(&stream->pending_requests);
+    stream->id = stream_id;
+    stream->connection = connection;
+    return stream;
 }
 ```
 
