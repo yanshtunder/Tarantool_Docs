@@ -145,28 +145,28 @@ iproto_stream. Структура, описывающая iproto_steram пред
 
 ```C
 struct iproto_stream {
-	/** Currently active stream transaction or NULL */
-	struct txn *txn;
-	/**
-	 * Queue of pending requests (iproto messages) for this stream,
-	 * processed sequentially. This field is accesable only from
-	 * iproto thread. Queue items has iproto_msg type.
-	 */
-	struct stailq pending_requests;
-	/** Id of this stream, used as a key in streams hash table */
-	uint64_t id;
-	/** This stream connection */
-	struct iproto_connection *connection;
-	/**
-	 * Pre-allocated disconnect msg to gracefully rollback stream
-	 * transaction and destroy stream object.
-	 */
-	struct cmsg on_disconnect;
-	/**
-	 * Message currently being processed in the tx thread.
-	 * This field is accesable only from iproto thread.
-	 */
-	struct iproto_msg *current;
+    /** Currently active stream transaction or NULL */
+    struct txn *txn;
+    /**
+    * Queue of pending requests (iproto messages) for this stream,
+    * processed sequentially. This field is accesable only from
+    * iproto thread. Queue items has iproto_msg type.
+    */
+    struct stailq pending_requests;
+    /** Id of this stream, used as a key in streams hash table */
+    uint64_t id;
+    /** This stream connection */
+    struct iproto_connection *connection;
+    /**
+    * Pre-allocated disconnect msg to gracefully rollback stream
+    * transaction and destroy stream object.
+    */
+    struct cmsg on_disconnect;
+    /**
+    * Message currently being processed in the tx thread.
+    * This field is accesable only from iproto thread.
+    */
+    struct iproto_msg *current;
 };
 ```
 
@@ -193,7 +193,7 @@ iproto_stream_new(struct iproto_connection *connection, uint64_t stream_id)
     struct iproto_stream *stream = (struct iproto_stream *)
         mempool_alloc(&iproto_thread->iproto_stream_pool);
     if (stream == NULL) {
-		diag_set(OutOfMemory, sizeof(*stream), "mempool_alloc", "stream");
+        diag_set(OutOfMemory, sizeof(*stream), "mempool_alloc", "stream");
         return NULL;
     }
     ...
