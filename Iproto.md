@@ -42,9 +42,12 @@ Tarantool.
 передаются в iproto тред. Часть данных из iproto сбрасывается в сеть, т.е.
 меняется wpos у obuf, соответсвенно это новое знвчение передается в TX тред
 посредством cbus message. Аналогично делается и для ibuf только в другую
-сторону (из iproto в TX). Число запросов одновременно находящихся в
-cpipe'ах &mdash; 2. В процессе работы, отправив специальное сообщение
-(`IPROTO_CFG_STOP`) это число можно изменить.
+сторону (из iproto в TX).
+
+Число iproto messages одновременно находящихся в cpipe'ах &mdash; 2. Один
+iproto message находится в net_pipe, другой &mdash; в tx_pipe. В процессе
+работы, отправив специальное сообщение (`IPROTO_CFG_STOP`) это число можно
+изменить.
 
 
 ```C
@@ -56,24 +59,24 @@ static int iproto_msg_max = IPROTO_MSG_MAX_MIN;
 
 /** Available iproto configuration changes. */
 enum iproto_cfg_op {
-	/** Command code to set max input for iproto thread */
-	IPROTO_CFG_MSG_MAX,
-	/**
-	 * Command code to start listen socket contained
-	 * in evio_service object
-	 */
-	IPROTO_CFG_LISTEN,
-	/**
-	 * Command code to stop listen socket contained
-	 * in evio_service object. In case when user sets
-	 * new parameters for iproto, it is necessary to stop
-	 * listen sockets in iproto threads before reconfiguration.
-	 */
-	IPROTO_CFG_STOP,
-	/**
-	 * Command code do get statistic from iproto thread
-	 */
-	IPROTO_CFG_STAT,
+    /** Command code to set max input for iproto thread */
+    IPROTO_CFG_MSG_MAX,
+    /**
+    * Command code to start listen socket contained
+    * in evio_service object
+    */
+    IPROTO_CFG_LISTEN,
+    /**
+    * Command code to stop listen socket contained
+    * in evio_service object. In case when user sets
+    * new parameters for iproto, it is necessary to stop
+    * listen sockets in iproto threads before reconfiguration.
+    */
+    IPROTO_CFG_STOP,
+    /**
+    * Command code do get statistic from iproto thread
+    */
+    IPROTO_CFG_STAT,
 };
 
 /**
@@ -84,17 +87,17 @@ enum iproto_cfg_op {
  */
 struct iproto_cfg_msg: public cbus_call_msg
 {
-	/** Operation to execute in iproto thread. */
-	enum iproto_cfg_op op;
-	union {
-		/** Pointer to the statistic stucture. */
-		struct iproto_stats *stats;
-		/** Pointer to evio_service, used for bind */
-		struct evio_service *binary;
-		/** New iproto max message count. */
-		int iproto_msg_max;
-	};
-	struct iproto_thread *iproto_thread;
+    /** Operation to execute in iproto thread. */
+    enum iproto_cfg_op op;
+    union {
+        /** Pointer to the statistic stucture. */
+        struct iproto_stats *stats;
+        /** Pointer to evio_service, used for bind */
+        struct evio_service *binary;
+        /** New iproto max message count. */
+        int iproto_msg_max;
+    };
+    struct iproto_thread *iproto_thread;
 };
 ```
 
@@ -212,10 +215,10 @@ iproto_stream_new(struct iproto_connection *connection, uint64_t stream_id)
 static void
 iproto_stream_delete(struct iproto_stream *stream)
 {
-	assert(stream->current == NULL);
-	assert(stailq_empty(&stream->pending_requests));
-	assert(stream->txn == NULL);
-	mempool_free(&stream->connection->iproto_thread->iproto_stream_pool, stream);
+    assert(stream->current == NULL);
+    assert(stailq_empty(&stream->pending_requests));
+    assert(stream->txn == NULL);
+    mempool_free(&stream->connection->iproto_thread->iproto_stream_pool, stream);
 }
 ```
 
